@@ -1,4 +1,5 @@
-const mogoose = require("mongoose");
+const mongoose = require("mongoose");
+
 const bycrypt = require("bcryptjs");
 
 const userschema = new mongoose.Schema(
@@ -15,4 +16,4 @@ userschema.pre("save", async function () {
   this.password = await bycrypt.hash(this.password, 10);
 });
 
-module.exports = mogoose.model("User", userschema);
+module.exports = mongoose.model("User", userschema);

@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const artifactema = new mongoose.Schema(
+const artifactSchema = new mongoose.Schema(
   {
     title: String,
     description: String,
@@ -9,4 +9,4 @@ const artifactema = new mongoose.Schema(
   { timestamps: true },
 );
 
-module.exports = mongoose.model("Artifact", artifactema);
+module.exports = mongoose.model("Artifact", artifactSchema);
