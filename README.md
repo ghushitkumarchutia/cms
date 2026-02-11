@@ -6,17 +6,18 @@ A RESTful Content Management System backend built with **Node.js**, **Express 5*
 
 ## Tech Stack
 
-| Layer          | Technology                          |
-| -------------- | ----------------------------------- |
-| Runtime        | Node.js                             |
-| Framework      | Express 5                           |
-| Database       | MongoDB (Mongoose 9 ODM)            |
-| Authentication | JWT (jsonwebtoken) + bcryptjs       |
-| Email          | Nodemailer (Gmail SMTP)             |
-| OTP            | otp-generator + bcrypt-hashed       |
-| Logging        | Morgan                              |
-| Dev Tooling    | Nodemon                             |
-| Population     | Mongoose populate (likes, comments) |
+| Layer          | Technology                                            |
+| -------------- | ----------------------------------------------------- |
+| Runtime        | Node.js                                               |
+| Framework      | Express 5                                             |
+| Database       | MongoDB (Mongoose 9 ODM)                              |
+| Authentication | JWT (jsonwebtoken) + bcryptjs                         |
+| Email          | Nodemailer (Gmail SMTP)                               |
+| OTP            | otp-generator + bcrypt-hashed                         |
+| Logging        | Morgan                                                |
+| Dev Tooling    | Nodemon                                               |
+| Population     | Mongoose populate (likes, comments)                   |
+| Security       | Helmet, express-rate-limit (global API rate limiting) |
 
 ---
 
@@ -34,7 +35,8 @@ cms-backend/
     │   ├── auth.controller.js       # Send OTP, Verify OTP, Signup, Login
     │   └── artifact.controller.js   # Create, List, Like, Comment artifacts
     ├── middlewares/
-    │   └── auth.middleware.js       # JWT Bearer token verification
+      │   ├── auth.middleware.js       # JWT Bearer token verification
+      │   └── rateLimiter.js           # Global API rate limiting middleware
     ├── models/
     │   ├── user.model.js            # User schema (email, password, isVerified)
     │   ├── otp.model.js             # OTP schema (email, otp, expiresAt) — hashed on save
@@ -209,6 +211,7 @@ The server will start on `http://localhost:3000`.
 - **Password Security** — User passwords are automatically hashed using `bcryptjs` (salt rounds: 10) via a Mongoose `pre('save')` hook.
 - **OTP Security** — OTPs are hashed with bcrypt before storage; plain-text OTPs are never persisted.
 - **JWT Strategy** — Tokens are signed with `HS256` using the `JWT_SECRET` env variable and expire after 7 days. The middleware extracts tokens from the `Authorization: Bearer <token>` header.
+- **Rate Limiting** — All `/api` routes are protected by a global rate limiter middleware (`rateLimiter.js`, using `express-rate-limit`). Limits each IP to 100 requests per 15 minutes. Customizable and centralized for maintainability.
 - **Artifact Likes** — Each artifact stores an array of user IDs (`likes`). Like/unlike is toggled via `/api/artifacts/:id/like`. Populated with user info for `/likes` endpoint.
 - **Artifact Comments** — Each artifact stores an array of comment objects (`comments`). Comments are added via `/api/artifacts/:id/comment`. Populated with user info for `/comments` endpoint. Comment text is validated and trimmed.
 - **CORS** — Enabled globally with default settings.
