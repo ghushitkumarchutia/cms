@@ -1,4 +1,5 @@
 const Artifact = require("../models/artifact.model");
+const { sendArtifactWebhook } = require("../utils/webhookSender");
 
 exports.createArtifact = async (req, res) => {
   try {
@@ -6,6 +7,9 @@ exports.createArtifact = async (req, res) => {
       ...req.body,
       createdBy: req.user.id,
     });
+
+    sendArtifactWebhook(artifact);
+
     res.json(artifact);
   } catch (error) {
     res
@@ -22,5 +26,96 @@ exports.getArtifacts = async (req, res) => {
     res
       .status(500)
       .json({ message: "Error fetching artifacts", error: error.message });
+  }
+};
+
+exports.toggleLike = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const artifact = await Artifact.findById(req.params.id);
+    if (!artifact) {
+      return res.status(404).json({ message: "Artifact not found" });
+    }
+
+    const alreadyLiked = artifact.likes.some((id) => id.toString() === userId);
+
+    if (alreadyLiked) {
+      artifact.likes.pull(userId);
+    } else {
+      artifact.likes.push(userId);
+    }
+
+    await artifact.save();
+
+    res.json({
+      message: alreadyLiked ? "Unliked" : "Liked",
+      totalLikes: artifact.likes.length,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getLikes = async (req, res) => {
+  try {
+    const artifact = await Artifact.findById(req.params.id).populate(
+      "likes",
+      "name email",
+    );
+
+    if (!artifact) {
+      return res.status(404).json({ message: "Artifact not found" });
+    }
+
+    res.json({
+      totalLikes: artifact.likes.length,
+      users: artifact.likes,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.addComment = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { text } = req.body;
+
+    const artifact = await Artifact.findById(req.params.id);
+    if (!artifact) {
+      return res.status(404).json({ message: "Artifact not found" });
+    }
+
+    artifact.comments.push({ userId, text });
+    await artifact.save();
+
+    res.json({
+      message: "Comment added",
+      comments: artifact.comments,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getComments = async (req, res) => {
+  try {
+    const artifact = await Artifact.findById(req.params.id).populate(
+      "comments.userId",
+      "name email",
+    );
+
+    if (!artifact) {
+      return res.status(404).json({ message: "Artifact not found" });
+    }
+
+    res.json({
+      totalComments: artifact.comments.length,
+
+      comments: artifact.comments,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
