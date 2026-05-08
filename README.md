@@ -1,225 +1,181 @@
-# CMS Backend API
+# 🚀 CMS Backend - Production-Ready Infrastructure
 
-A RESTful Content Management System backend built with **Node.js**, **Express 5**, and **MongoDB**. Features OTP-based email verification, JWT authentication, and CRUD operations for artifacts.
+[![Node.js Version](https://img.shields.io/badge/Node.js-v18%2B-green.svg)](https://nodejs.org/)
+[![MongoDB](https://img.shields.io/badge/Database-MongoDB-47A248.svg)](https://www.mongodb.com/)
+[![Express](https://img.shields.io/badge/Framework-Express-000000.svg)](https://expressjs.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
----
-
-## Tech Stack
-
-| Layer          | Technology                                            |
-| -------------- | ----------------------------------------------------- |
-| Runtime        | Node.js                                               |
-| Framework      | Express 5                                             |
-| Database       | MongoDB (Mongoose 9 ODM)                              |
-| Authentication | JWT (jsonwebtoken) + bcryptjs                         |
-| Email          | Nodemailer (Gmail SMTP)                               |
-| OTP            | otp-generator + bcrypt-hashed                         |
-| Logging        | Morgan                                                |
-| Dev Tooling    | Nodemon                                               |
-| Population     | Mongoose populate (likes, comments)                   |
-| Security       | Helmet, express-rate-limit (global API rate limiting) |
+An Content Management System (CMS) backend architected for scalability, security, and deep data insights. This project serves as a comprehensive showcase of professional backend engineering, featuring advanced MongoDB aggregation pipelines, ACID transactions, and a robust security infrastructure.
 
 ---
 
-## Project Structure
+## 📑 Table of Contents
 
-```
-cms-backend/
-├── server.js                        # Entry point — loads env, connects DB, starts server
-├── package.json
-└── src/
-    ├── app.js                       # Express app setup (CORS, JSON parsing, routes)
-    ├── config/
-    │   └── db.js                    # MongoDB connection via Mongoose
-    ├── controllers/
-    │   ├── auth.controller.js       # Send OTP, Verify OTP, Signup, Login
-    │   └── artifact.controller.js   # Create, List, Like, Comment artifacts
-    ├── middlewares/
-      │   ├── auth.middleware.js       # JWT Bearer token verification
-      │   └── rateLimiter.js           # Global API rate limiting middleware
-    ├── models/
-    │   ├── user.model.js            # User schema (email, password, isVerified)
-    │   ├── otp.model.js             # OTP schema (email, otp, expiresAt) — hashed on save
-    │   └── artifact.model.js        # Artifact schema (title, description, createdBy, likes, comments)
-    └── routes/
-      ├── auth.routes.js           # /api/auth/*
-      └── artifact.routes.js       # /api/artifacts/* (create, list, like, comment)
-```
+- [Core Value Proposition](#-core-value-proposition)
+- [Technical Architecture](#-technical-architecture)
+- [Key Features](#-key-features)
+- [Advanced MongoDB Implementations](#-advanced-mongodb-implementations)
+- [API Reference](#-api-reference)
+- [Database Schema](#-database-schema)
+- [Getting Started](#-getting-started)
+- [Security & Performance](#-security--performance)
 
 ---
 
-## API Endpoints
+## 💎 Core Value Proposition
 
-### Root
+This CMS is not just a CRUD application; it is a **hardened infrastructure** designed to handle real-world complexities:
 
-| Method | Endpoint | Description     |
-| ------ | -------- | --------------- |
-| GET    | `/`      | Welcome message |
-
-### Authentication — `/api/auth`
-
-| Method | Endpoint      | Body                  | Description                               |
-| ------ | ------------- | --------------------- | ----------------------------------------- |
-| POST   | `/send-otp`   | `{ email }`           | Generates a 6-digit OTP and emails it     |
-| POST   | `/verify-otp` | `{ email, otp }`      | Verifies OTP against hashed record        |
-| POST   | `/signup`     | `{ email, password }` | Creates a new user (password auto-hashed) |
-| POST   | `/login`      | `{ email, password }` | Returns a JWT token (valid for 7 days)    |
-
-### Artifacts — `/api/artifacts` _(requires authentication)_
-
-| Method | Endpoint        | Headers                         | Body                     | Description                                         |
-| ------ | --------------- | ------------------------------- | ------------------------ | --------------------------------------------------- |
-| POST   | `/`             | `Authorization: Bearer <token>` | `{ title, description }` | Create a new artifact                               |
-| GET    | `/`             | `Authorization: Bearer <token>` | —                        | List all artifacts (populates creator)              |
-| POST   | `/:id/like`     | `Authorization: Bearer <token>` | —                        | Toggle like for artifact (like/unlike)              |
-| GET    | `/:id/likes`    | `Authorization: Bearer <token>` | —                        | Get total likes and users who liked                 |
-| POST   | `/:id/comment`  | `Authorization: Bearer <token>` | `{ text }`               | Add a comment to an artifact                        |
-| GET    | `/:id/comments` | `Authorization: Bearer <token>` | —                        | List comments for an artifact (populates commenter) |
-
-### Postman Tests — Artifacts (Likes & Comments)
-
-- **Base URL:** `http://localhost:PORT/api/artifacts`  
-   Replace `PORT` with your server port (e.g., `3000`).
-
-- **Common Headers (all requests):**
-  - `Authorization: Bearer <JWT_TOKEN>`
-  - `Content-Type: application/json`
-
-- **1) Toggle Like**
-  - Method: `POST`
-  - URL: `/api/artifacts/:id/like`
-  - Body: none
-  - Expected: `200` with `{ "message": "Liked" | "Unliked", "totalLikes": <number> }`
-
-- **2) Get Likes**
-  - Method: `GET`
-  - URL: `/api/artifacts/:id/likes`
-  - Expected: `200` with `{ "totalLikes": <number>, "users": [ { "_id": "...", "name": "...", "email": "..." } ] }`
-
-- **3) Add Comment**
-  - Method: `POST`
-  - URL: `/api/artifacts/:id/comment`
-  - Body (raw JSON): `{ "text": "Your comment here" }`
-  - Expected: `200` with `{ "message": "Comment added", "comments": [ ... ] }`
-  - Validation: `text` is required — empty text returns `400` with `{ message: "Comment text is required" }`
-
-- **4) Get Comments**
-  - Method: `GET`
-  - URL: `/api/artifacts/:id/comments`
-  - Expected: `200` with `{ "totalComments": <number>, "comments": [ { "_id":"...", "userId": { "_id":"...","name":"...","email":"..." }, "text":"..." } ] }`
-
-- **Quick flow:**
-  1. Create an artifact: `POST /api/artifacts` (save the `_id`).
-  2. Use a valid JWT for the user to `POST /:id/like` and `POST /:id/comment`.
-  3. Verify with `GET /:id/likes` and `GET /:id/comments`.
+- **Zero-Downtime Reliability**: Centralized error handling prevents unhandled rejections from crashing the process.
+- **Data Integrity**: Multi-document operations are wrapped in ACID transactions to ensure consistency.
+- **Deep Observability**: Every mutation is logged in a high-performance capped collection for auditing.
+- **Scalable Search**: Leverages MongoDB's native text indexing for fast, relevant content discovery.
 
 ---
 
-## Authentication Flow
+## 🏗 Technical Architecture
 
-```
-1. POST /api/auth/send-otp      → OTP generated, hashed, stored in DB, emailed to user
-2. POST /api/auth/verify-otp    → OTP compared against hashed record (10-min expiry)
-3. POST /api/auth/signup        → User created with hashed password
-4. POST /api/auth/login         → Credentials verified → JWT issued (7-day expiry)
-5. Authenticated requests       → Include `Authorization: Bearer <token>` header
+```mermaid
+graph TD
+    Client[Client Applications] --> LB[Express Server]
+    LB --> RateLimit[Rate Limiter & Helmet]
+    RateLimit --> Auth[Auth Middleware]
+    Auth --> RBAC[Role-Based Access Control]
+    RBAC --> Controllers[Controllers Layer]
+    Controllers --> Utils[Utilities: queryBuilder, logActivity]
+    Controllers --> Models[Mongoose Models]
+    Models --> MongoDB[(MongoDB Atlas)]
+    Controllers --> Storage[Local Multer Storage]
 ```
 
 ---
 
-## Data Models
+## 🌟 Key Features
 
-### User
+### 🔐 Security & Identity
 
-| Field      | Type    | Details                  |
-| ---------- | ------- | ------------------------ |
-| email      | String  | Required, unique         |
-| password   | String  | Required, bcrypt-hashed  |
-| isVerified | Boolean | Default: `false`         |
-| timestamps | —       | `createdAt`, `updatedAt` |
+- **Robust Auth Flow**: Signup-then-Verify flow utilizing email OTPs with auto-expiring TTL indexes.
+- **RBAC**: Granular permissions for `Users` and `Admins`. Admins have full system visibility and user management capabilities.
+- **Identity Protection**: Automatic exclusion of sensitive fields (passwords, `__v`) from all JSON responses using Mongoose transforms.
 
-### OTP
+### 📁 Content Management
 
-| Field      | Type   | Details                   |
-| ---------- | ------ | ------------------------- |
-| email      | String | Recipient email           |
-| otp        | String | bcrypt-hashed before save |
-| expiresAt  | Date   | 10 minutes from creation  |
-| timestamps | —      | `createdAt`, `updatedAt`  |
+- **Artifact CRUD**: Full lifecycle management for artifacts with status control (`draft`/`published`) and tag-based categorization.
+- **File Uploads**: Optimized Multer configuration for image uploads, featuring automatic cleanup of physical files when records are updated or deleted.
+- **Social Engagement**: Atomic like/unlike and nested comment system designed for high concurrency.
 
-### Artifact
+### 🔍 Advanced Data Discovery
 
-| Field       | Type       | Details                                                             |
-| ----------- | ---------- | ------------------------------------------------------------------- |
-| title       | String     | Artifact title                                                      |
-| description | String     | Artifact description                                                |
-| createdBy   | ObjectId   | Ref → `User`                                                        |
-| likes       | [ObjectId] | Array of User IDs who liked (populated)                             |
-| comments    | [Object]   | Array of comment objects: `{ userId, text, createdAt }` (populated) |
-| timestamps  | —          | `createdAt`, `updatedAt`                                            |
+- **Reusable Query Engine**: A sophisticated `queryBuilder` utility supporting:
+  - Multi-field filtering (e.g., `status=published&tags[in]=tech`).
+  - Range queries (e.g., `createdAt[gte]=2023-01-01`).
+  - Paginated responses with total counts and page metadata.
+- **Global Text Search**: Instant search across titles and descriptions using MongoDB `$text` scoring.
 
 ---
 
-## Getting Started
+## 🍃 Advanced MongoDB Implementations
+
+This project demonstrates senior-level proficiency in MongoDB through:
+
+### 1. Complex Aggregation Pipelines
+
+Implemented sophisticated analytics for real-time reporting:
+
+- **Trend Analysis**: Grouping artifacts by date to visualize content growth.
+- **User Engagement**: Multi-stage `$lookup` and `$unwind` to identify most active users based on interactions.
+- **Distribution Maps**: Frequency analysis of tags to identify popular content topics.
+
+### 2. ACID Transactions
+
+Guaranteed atomicity during complex "Cascade Deletes":
+
+- When a user is deleted, the system starts a **Mongoose Session**.
+- It identifies and deletes all associated artifacts and their physical image files.
+- It pulls the user's ID from all `likes` and `comments` across the database.
+- It deletes the user record.
+- **Result**: Either everything succeeds, or nothing changes.
+
+### 3. Capped Collections for Auditing
+
+- The `AuditLog` model uses a **Capped Collection** (Fixed size: 10MB).
+- This provides "First-In-First-Out" automatic data rotation, ensuring logs never consume excessive disk space while maintaining high write throughput.
+
+---
+
+## 🚀 API Reference
+
+### Authentication
+
+| Method | Endpoint               | Description            | Access |
+| :----- | :--------------------- | :--------------------- | :----- |
+| POST   | `/api/auth/signup`     | Register new user      | Public |
+| POST   | `/api/auth/send-otp`   | Send verification OTP  | Public |
+| POST   | `/api/auth/verify-otp` | Verify email via OTP   | Public |
+| POST   | `/api/auth/login`      | Authenticate & get JWT | Public |
+
+### Artifacts
+
+| Method | Endpoint                | Description                    | Access      |
+| :----- | :---------------------- | :----------------------------- | :---------- |
+| GET    | `/api/artifacts`        | List all (Paginated/Filtered)  | Private     |
+| GET    | `/api/artifacts/me`     | List my artifacts              | Private     |
+| GET    | `/api/artifacts/search` | Text search artifacts          | Private     |
+| POST   | `/api/artifacts`        | Create new artifact (w/ Image) | Private     |
+| PATCH  | `/api/artifacts/:id`    | Update artifact                | Owner/Admin |
+| DELETE | `/api/artifacts/:id`    | Delete artifact (Clean files)  | Owner/Admin |
+
+### Analytics (Admin Only)
+
+| Method | Endpoint                          | Description                  |
+| :----- | :-------------------------------- | :--------------------------- |
+| GET    | `/api/analytics/overview`         | Total counts & system health |
+| GET    | `/api/analytics/top-artifacts`    | Rank artifacts by engagement |
+| GET    | `/api/analytics/tag-distribution` | Content topic breakdown      |
+
+---
+
+## 🛠 Getting Started
 
 ### Prerequisites
 
-- **Node.js** (v18+)
-- **MongoDB** (local or Atlas)
-- **Gmail account** with an [App Password](https://support.google.com/accounts/answer/185833) for Nodemailer
+- Node.js 18.x or higher
+- MongoDB (Local or Atlas Cluster)
+- Gmail account (for OTP sending)
 
 ### Installation
 
-```bash
-# Clone the repository
-git clone <repo-url>
-cd CMS/cms-backend
-
-# Install dependencies
-npm install
-```
-
-### Environment Variables
-
-Create a `.env` file in the `cms-backend/` directory:
-
-```env
-PORT=3000
-MONGO_URI=mongodb://localhost:27017/cms                  # Local MongoDB
-# MONGO_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/<dbname>?retryWrites=true&w=majority   # MongoDB Atlas
-JWT_SECRET=your_jwt_secret_key
-EMAIL_USER=your_email@gmail.com
-EMAIL_PASS=your_gmail_app_password
-```
-
-### Run
-
-```bash
-# Development (with hot-reload)
-npm run dev
-
-# Production
-npm start
-```
-
-The server will start on `http://localhost:3000`.
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/ghushitkumarchutia/cms.git
+   cd cms-backend
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Configure `.env`:
+   ```env
+   PORT=3000
+   MONGO_URI=mongodb+srv://...
+   JWT_SECRET=your_jwt_secret
+   EMAIL_USER=your_email@gmail.com
+   EMAIL_PASS=your_app_password
+   ```
+4. Run in development:
+   ```bash
+   npm run dev
+   ```
 
 ---
 
-## Key Implementation Details
+## 🛡 Security & Performance
 
-- **Password Security** — User passwords are automatically hashed using `bcryptjs` (salt rounds: 10) via a Mongoose `pre('save')` hook.
-- **OTP Security** — OTPs are hashed with bcrypt before storage; plain-text OTPs are never persisted.
-- **JWT Strategy** — Tokens are signed with `HS256` using the `JWT_SECRET` env variable and expire after 7 days. The middleware extracts tokens from the `Authorization: Bearer <token>` header.
-- **Rate Limiting** — All `/api` routes are protected by a global rate limiter middleware (`rateLimiter.js`, using `express-rate-limit`). Limits each IP to 100 requests per 15 minutes. Customizable and centralized for maintainability.
-- **Artifact Likes** — Each artifact stores an array of user IDs (`likes`). Like/unlike is toggled via `/api/artifacts/:id/like`. Populated with user info for `/likes` endpoint.
-- **Artifact Comments** — Each artifact stores an array of comment objects (`comments`). Comments are added via `/api/artifacts/:id/comment`. Populated with user info for `/comments` endpoint. Comment text is validated and trimmed.
-- **CORS** — Enabled globally with default settings.
-- **Body Parsing** — JSON payloads accepted up to 10 MB.
-- **Request Logging** — All requests are logged in `dev` format via Morgan.
+- **Rate Limiting**: 100 requests per 15 minutes per IP to prevent DoS.
+- **Payload Limits**: 10MB limit on JSON payloads for stability.
+- **Index Optimization**: Compound indexes on `(createdBy, createdAt)` and Text indexes on content.
+- **Graceful Shutdown**: Listens for `SIGTERM` to close database connections cleanly before exiting.
 
 ---
 
-## License
-
-ISC
+_Developed with precision for high-stake backend environments._

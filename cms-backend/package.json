@@ -1,7 +1,7 @@
 {
   "name": "cms-backend",
   "version": "1.0.0",
-  "description": "Placement-grade CMS Backend with MongoDB",
+  "description": "Content Management System with MongoDB",
   "license": "ISC",
   "author": "ghushit",
   "type": "commonjs",
