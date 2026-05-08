@@ -5,7 +5,7 @@
 [![Express](https://img.shields.io/badge/Framework-Express-000000.svg)](https://expressjs.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An Content Management System (CMS) backend architected for scalability, security, and deep data insights. This project serves as a comprehensive showcase of professional backend engineering, featuring advanced MongoDB aggregation pipelines, ACID transactions, and a robust security infrastructure.
+A Content Management System (CMS) backend architected for scalability, security, and deep data insights. This project serves as a comprehensive showcase of professional backend engineering, featuring advanced MongoDB aggregation pipelines, ACID transactions, and a robust security infrastructure.
 
 ---
 
