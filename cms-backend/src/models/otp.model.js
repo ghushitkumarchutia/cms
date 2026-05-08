@@ -1,19 +1,34 @@
 const mongoose = require("mongoose");
-
 const bcrypt = require("bcryptjs");
 
-const otpschema = new mongoose.Schema(
+const otpSchema = new mongoose.Schema(
   {
-    email: String,
-    otp: String,
-    expiresAt: Date,
+    email: {
+      type: String,
+      required: true,
+      lowercase: true,
+    },
+    otp: {
+      type: String,
+      required: true,
+    },
+    expiresAt: {
+      type: Date,
+      required: true,
+      index: { expires: 0 },
+    },
   },
   { timestamps: true },
 );
 
-otpschema.pre("save", async function () {
-  if (!this.isModified("otp")) return;
+otpSchema.pre("save", async function (next) {
+  if (!this.isModified("otp")) return next();
   this.otp = await bcrypt.hash(this.otp, 10);
+  next();
 });
 
-module.exports = mongoose.model("OTP", otpschema);
+otpSchema.methods.compareOTP = async function (candidateOTP) {
+  return await bcrypt.compare(candidateOTP, this.otp);
+};
+
+module.exports = mongoose.model("OTP", otpSchema);

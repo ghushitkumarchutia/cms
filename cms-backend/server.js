@@ -4,8 +4,19 @@ const connectDB = require("./src/config/db");
 
 const PORT = process.env.PORT || 3000;
 
-connectDB();
+const startServer = async () => {
+  await connectDB();
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+  const server = app.listen(PORT, () => {
+    console.log(
+      `Server is running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`,
+    );
+  });
+
+  process.on("unhandledRejection", (err, promise) => {
+    console.log(`Error: ${err.message}`);
+    server.close(() => process.exit(1));
+  });
+};
+
+startServer();

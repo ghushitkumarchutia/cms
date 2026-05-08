@@ -1,128 +1,280 @@
 const Artifact = require("../models/artifact.model");
-const { sendArtifactWebhook } = require("../utils/webhookSender");
+const asyncHandler = require("../utils/asyncHandler");
+const mongoose = require("mongoose");
+const fs = require("fs");
+const queryBuilder = require("../utils/queryBuilder");
+const logActivity = require("../utils/logActivity");
 
-exports.createArtifact = async (req, res) => {
-  try {
-    const artifact = await Artifact.create({
-      ...req.body,
-      createdBy: req.user.id,
+exports.createArtifact = asyncHandler(async (req, res, next) => {
+  const artifactData = { ...req.body };
+  if (req.file) {
+    artifactData.imageUrl = req.file.path;
+  }
+
+  const artifact = await Artifact.create({
+    ...artifactData,
+    createdBy: req.user.id,
+  });
+
+  await logActivity(req, {
+    action: "create",
+    collectionName: "Artifact",
+    documentId: artifact._id,
+    details: { title: artifact.title },
+  });
+
+  res.status(201).json({ success: true, data: artifact });
+});
+
+exports.getArtifacts = asyncHandler(async (req, res, next) => {
+  const { filter, select, sort, page, limit, skip } = queryBuilder(req.query);
+
+  const total = await Artifact.countDocuments(filter);
+  const artifacts = await Artifact.find(filter)
+    .select(select)
+    .sort(sort)
+    .skip(skip)
+    .limit(limit)
+    .populate("createdBy", "name email")
+    .lean();
+
+  res.status(200).json({
+    success: true,
+    count: artifacts.length,
+    total,
+    pagination: {
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+    data: artifacts,
+  });
+});
+
+exports.getMyArtifacts = asyncHandler(async (req, res, next) => {
+  const { filter, select, sort, page, limit, skip } = queryBuilder(req.query);
+  filter.createdBy = req.user.id;
+
+  const total = await Artifact.countDocuments(filter);
+  const artifacts = await Artifact.find(filter)
+    .select(select)
+    .sort(sort)
+    .skip(skip)
+    .limit(limit)
+    .lean();
+
+  res.status(200).json({
+    success: true,
+    count: artifacts.length,
+    total,
+    pagination: { page, limit, totalPages: Math.ceil(total / limit) },
+    data: artifacts,
+  });
+});
+
+exports.searchArtifacts = asyncHandler(async (req, res, next) => {
+  const { filter, select, sort, page, limit, skip } = queryBuilder(req.query);
+
+  if (!req.query.search) {
+    return res.status(400).json({ success: false, message: "Please provide a search term" });
+  }
+
+  const textSort = req.query.sort ? sort : { score: { $meta: "textScore" } };
+
+  const total = await Artifact.countDocuments(filter);
+  const artifacts = await Artifact.find(filter)
+    .select(`${select} score`)
+    .sort(textSort)
+    .skip(skip)
+    .limit(limit)
+    .populate("createdBy", "name email")
+    .lean();
+
+  res.status(200).json({
+    success: true,
+    count: artifacts.length,
+    total,
+    data: artifacts,
+  });
+});
+
+exports.toggleLike = asyncHandler(async (req, res, next) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid Artifact ID" });
+  }
+
+  const userId = req.user.id;
+  const artifact = await Artifact.findById(req.params.id);
+
+  if (!artifact) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Artifact not found" });
+  }
+
+  const alreadyLiked = artifact.likes.includes(userId);
+
+  const update = alreadyLiked
+    ? { $pull: { likes: userId } }
+    : { $addToSet: { likes: userId } };
+
+  const updatedArtifact = await Artifact.findByIdAndUpdate(
+    req.params.id,
+    update,
+    { new: true },
+  );
+
+  res.status(200).json({
+    success: true,
+    message: alreadyLiked ? "Unliked" : "Liked",
+    totalLikes: updatedArtifact.likes.length,
+  });
+});
+
+exports.getLikes = asyncHandler(async (req, res, next) => {
+  const artifact = await Artifact.findById(req.params.id)
+    .populate("likes", "name email")
+    .lean();
+
+  if (!artifact) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Artifact not found" });
+  }
+
+  res.status(200).json({
+    success: true,
+    totalLikes: artifact.likes.length,
+    users: artifact.likes,
+  });
+});
+
+exports.addComment = asyncHandler(async (req, res, next) => {
+  const { text } = req.body;
+
+  if (!text || !text.trim()) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Comment text is required" });
+  }
+
+  const artifact = await Artifact.findByIdAndUpdate(
+    req.params.id,
+    { $push: { comments: { userId: req.user.id, text: text.trim() } } },
+    { new: true, runValidators: true },
+  ).populate("comments.userId", "name email");
+
+  if (!artifact) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Artifact not found" });
+  }
+
+  res.status(200).json({
+    success: true,
+    message: "Comment added",
+    comments: artifact.comments,
+  });
+});
+
+exports.getComments = asyncHandler(async (req, res, next) => {
+  const artifact = await Artifact.findById(req.params.id)
+    .populate("comments.userId", "name email")
+    .lean();
+
+  if (!artifact) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Artifact not found" });
+  }
+
+  res.status(200).json({
+    success: true,
+    totalComments: artifact.comments.length,
+    comments: artifact.comments,
+  });
+});
+
+exports.updateArtifact = asyncHandler(async (req, res, next) => {
+  let artifact = await Artifact.findById(req.params.id);
+
+  if (!artifact) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Artifact not found" });
+  }
+
+  if (
+    artifact.createdBy.toString() !== req.user.id &&
+    req.user.role !== "admin"
+  ) {
+    return res.status(401).json({
+      success: false,
+      message: "Not authorized to update this artifact",
     });
-
-    sendArtifactWebhook(artifact);
-
-    res.json(artifact);
-  } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error creating artifact", error: error.message });
   }
-};
 
-exports.getArtifacts = async (req, res) => {
-  try {
-    const artifacts = await Artifact.find().populate("createdBy", "email");
-    res.json(artifacts);
-  } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error fetching artifacts", error: error.message });
+  const updateData = { ...req.body };
+  if (req.file) {
+    if (artifact.imageUrl && fs.existsSync(artifact.imageUrl)) {
+      fs.unlinkSync(artifact.imageUrl);
+    }
+    updateData.imageUrl = req.file.path;
   }
-};
 
-exports.toggleLike = async (req, res) => {
-  try {
-    const userId = req.user && (req.user.id || req.user._id);
+  artifact = await Artifact.findByIdAndUpdate(req.params.id, updateData, {
+    new: true,
+    runValidators: true,
+  });
 
-    const artifact = await Artifact.findById(req.params.id);
-    if (!artifact) {
-      return res.status(404).json({ message: "Artifact not found" });
-    }
+  await logActivity(req, {
+    action: "update",
+    collectionName: "Artifact",
+    documentId: artifact._id,
+    details: { title: artifact.title },
+  });
 
-    const alreadyLiked = artifact.likes.some((id) =>
-      typeof id.equals === "function"
-        ? id.equals(userId)
-        : id.toString() === String(userId),
-    );
+  res.status(200).json({ success: true, data: artifact });
+});
 
-    if (alreadyLiked) {
-      artifact.likes.pull(userId);
-    } else {
-      artifact.likes.push(userId);
-    }
+exports.deleteArtifact = asyncHandler(async (req, res, next) => {
+  const artifact = await Artifact.findById(req.params.id);
 
-    await artifact.save();
+  if (!artifact) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Artifact not found" });
+  }
 
-    res.json({
-      message: alreadyLiked ? "Unliked" : "Liked",
-      totalLikes: artifact.likes.length,
+  if (
+    artifact.createdBy.toString() !== req.user.id &&
+    req.user.role !== "admin"
+  ) {
+    return res.status(401).json({
+      success: false,
+      message: "Not authorized to delete this artifact",
     });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
   }
-};
 
-exports.getLikes = async (req, res) => {
-  try {
-    const artifact = await Artifact.findById(req.params.id).populate(
-      "likes",
-      "name email",
-    );
-
-    if (!artifact) {
-      return res.status(404).json({ message: "Artifact not found" });
-    }
-
-    res.json({
-      totalLikes: artifact.likes.length,
-      users: artifact.likes,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  if (artifact.imageUrl && fs.existsSync(artifact.imageUrl)) {
+    fs.unlinkSync(artifact.imageUrl);
   }
-};
 
-exports.addComment = async (req, res) => {
-  try {
-    const userId = req.user && (req.user.id || req.user._id);
-    const { text } = req.body;
+  const artifactId = artifact._id;
+  const artifactTitle = artifact.title;
 
-    if (!text || !String(text).trim()) {
-      return res.status(400).json({ message: "Comment text is required" });
-    }
+  await artifact.deleteOne();
 
-    const artifact = await Artifact.findById(req.params.id);
-    if (!artifact) {
-      return res.status(404).json({ message: "Artifact not found" });
-    }
+  await logActivity(req, {
+    action: "delete",
+    collectionName: "Artifact",
+    documentId: artifactId,
+    details: { title: artifactTitle },
+  });
 
-    artifact.comments.push({ userId, text: String(text).trim() });
-    await artifact.save();
-
-    await artifact.populate("comments.userId", "name email");
-
-    res.json({ message: "Comment added", comments: artifact.comments });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-exports.getComments = async (req, res) => {
-  try {
-    const artifact = await Artifact.findById(req.params.id).populate(
-      "comments.userId",
-      "name email",
-    );
-
-    if (!artifact) {
-      return res.status(404).json({ message: "Artifact not found" });
-    }
-
-    res.json({
-      totalComments: artifact.comments.length,
-
-      comments: artifact.comments,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+  res
+    .status(200)
+    .json({ success: true, message: "Artifact deleted successfully" });
+});

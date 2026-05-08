@@ -1,8 +1,20 @@
 const mongoose = require("mongoose");
 
 const connectDB = async () => {
-  await mongoose.connect(process.env.MONGO_URI);
-  console.log("MongoDB connected");
+  try {
+    const conn = await mongoose.connect(process.env.MONGO_URI);
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
+  } catch (error) {
+    console.error(`Error: ${error.message}`);
+    process.exit(1);
+  }
 };
+
+process.on("SIGTERM", () => {
+  mongoose.connection.close(() => {
+    console.log("MongoDB connection closed through app termination");
+    process.exit(0);
+  });
+});
 
 module.exports = connectDB;
