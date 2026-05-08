@@ -1,0 +1,40 @@
+const validateEmail = (email) => {
+  return String(email)
+    .toLowerCase()
+    .match(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/);
+};
+
+exports.validateSignup = (req, res, next) => {
+  const { email, password, name } = req.body;
+  const errors = [];
+
+  if (!name || name.trim().length < 2) errors.push("Name must be at least 2 characters");
+  if (!email || !validateEmail(email)) errors.push("Please provide a valid email");
+  if (!password || password.length < 6) errors.push("Password must be at least 6 characters");
+
+  if (errors.length > 0) {
+    return res.status(400).json({ success: false, errors });
+  }
+  next();
+};
+
+exports.validateLogin = (req, res, next) => {
+  const { email, password } = req.body;
+  const errors = [];
+
+  if (!email || !validateEmail(email)) errors.push("Please provide a valid email");
+  if (!password) errors.push("Password is required");
+
+  if (errors.length > 0) {
+    return res.status(400).json({ success: false, errors });
+  }
+  next();
+};
+
+exports.validateOTP = (req, res, next) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return res.status(400).json({ success: false, message: "Email and OTP are required" });
+  }
+  next();
+};
